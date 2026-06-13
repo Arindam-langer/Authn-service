@@ -15,11 +15,23 @@ const (
 	WriteTimeout time.Duration = 10 * time.Second
 )
 
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Println("started", r.Method, r.URL.Path)
+
+		next.ServeHTTP(w, r)
+
+		log.Println("completed", r.Method, r.URL.Path)
+	})
+}
+
 func main() {
 	router := routes.Init()
+
+	handlers := loggingMiddleware(router)
 	s := &http.Server{
 		Addr:           listenAddr,
-		Handler:        router,
+		Handler:        handlers,
 		ReadTimeout:    ReadTimeout,
 		WriteTimeout:   WriteTimeout,
 		MaxHeaderBytes: 1 << 20,
