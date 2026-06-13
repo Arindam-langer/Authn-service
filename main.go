@@ -6,28 +6,27 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Arindam-langer/governance-service/handlers"
+	"github.com/Arindam-langer/governance-service/routes"
 )
 
 const (
-	PORT         string        = "8080"
+	listenAddr   string        = "localhost:8080"
 	ReadTimeout  time.Duration = 10 * time.Second
 	WriteTimeout time.Duration = 10 * time.Second
 )
 
 func main() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", handlers.HealthCheck)
+	router := routes.Init()
 	s := &http.Server{
-		Addr:           PORT,
-		Handler:        mux,
+		Addr:           listenAddr,
+		Handler:        router,
 		ReadTimeout:    ReadTimeout,
 		WriteTimeout:   WriteTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
-	fmt.Println("server listening on localhost:8080")
+	fmt.Println("server listening on ", listenAddr)
 	err := s.ListenAndServe()
 	if err != nil {
-		log.Fatalf("failed to run the server")
+		log.Fatalf("failed to run the server %v", err)
 	}
 }

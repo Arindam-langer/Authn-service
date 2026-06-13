@@ -17,6 +17,7 @@ the main thing is that i need to make this project be divided into small parts t
 what is a governance microservice?
 1. it is just a server that gives a token.
 2. make a http server
+  i have made the HTTP server in the previous commit it returns 200 response. i did a bit of refactor but i am thinking of how what to do here right now. do i need more refactor or not i think i should make a package for routes as well and just import that.
 3. give the Http server some end points
 4. make the endpoints return token
 5. store the tokens for verification
