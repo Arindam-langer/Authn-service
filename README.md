@@ -20,6 +20,15 @@ what is a governance microservice?
   - i have made the HTTP server in the previous commit it returns 200 response. i did a bit of refactor but i am thinking of how what to do here right now. do i need more refactor or not i think i should make a package for routes as well and just import that.
 3. give the Http server some end points: 
   - this is completed as i made a health checkpoint and necessary refactors now i need to add two things i think logging and rate limitind middleware for now
-4. make the endpoints return token
-5. store the tokens for verification
+4. make the endpoints return token: i have completed that now an endpoints generate token and header is storing them for the client. we need to do right now is make another token get stored in cookies which is a refresh token
+5. store the tokens for verification: completed this but now very good check right now since we need to store the token somewhere for us to check
+i think we can two ways here one where we store a raw token in redis cache and just check if it is present in redis if it is and expiry is not happening we just pass it on verified. but we can add another check from our db which stores user data as well and check if that guy is a valid user as well. a two way check would go like this in design.
+
+## Making the check:
+login request happens
+we provide token back in header
+we store the token in redis along with its expiry
+and store the claims if user does not exist before using claims in postgres or any db of choice
+**now the check**
+
 6. then we will see.

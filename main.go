@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Arindam-langer/governance-service/middleware"
 	"github.com/Arindam-langer/governance-service/routes"
 )
 
@@ -15,20 +16,10 @@ const (
 	WriteTimeout time.Duration = 10 * time.Second
 )
 
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println("started", r.Method, r.URL.Path)
-
-		next.ServeHTTP(w, r)
-
-		log.Println("completed", r.Method, r.URL.Path)
-	})
-}
-
 func main() {
 	router := routes.Init()
 
-	handlers := loggingMiddleware(router)
+	handlers := middleware.LoggingMiddleware(middleware.UpdateHeader(router))
 	s := &http.Server{
 		Addr:           listenAddr,
 		Handler:        handlers,
