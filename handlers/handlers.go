@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Arindam-langer/governance-service/internal"
+	"github.com/Arindam-langer/governance-service/internal/auth"
 	"github.com/Arindam-langer/governance-service/internal/db"
 	"github.com/golang-jwt/jwt"
 )
@@ -55,7 +55,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// if the above condition does not work then we are gucci so we just generate the token and return in header
-	token, err := internal.CreateToken(body.Username, body.Password)
+	token, err := auth.CreateToken(body.Username, body.Password)
 	if err != nil {
 		log.Printf("error in generating Token %v", err)
 	}
@@ -77,7 +77,7 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, req *http.Request) {
 		response(w, res)
 	}
 	headerToken := strings.TrimPrefix(req.Header["Authorization"][0], "Bearer ")
-	token, err := jwt.Parse(headerToken, internal.IsValidToken)
+	token, err := jwt.Parse(headerToken, auth.IsValidToken)
 	if err != nil {
 		log.Printf("error in token parsing %v", err)
 	}

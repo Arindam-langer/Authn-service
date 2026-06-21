@@ -25,9 +25,9 @@ what is a governance microservice?
     currently i am connecting to DB so it should be another part.
     ## The DB connection:
     well i am using postgres because it is very famous i got a docker-compose file for it now i need to make a connection currently for one no pooling and also take a look at what is context here to cancel that concurrent call probably then make a script that runs to create models on server running and two three query interface function to query the db in the whole code base easily. they should be generic
-i think we can two ways here one where we store a raw token in redis cache and just check if it is present in redis if it is and expiry is not happening we just pass it on verified. but we can add another check from our db which stores user data as well and check if that guy is a valid user as well. a two way check would go like this in design.
+i think we can two ways here one where we store a raw token in redis cache and just check if it is present in redis if it is and expiry is not happening we just pass it on verified. but we can add another check from our db which stores user data as well and check if that guy is a valid user as well. a two way check would go like this in design. making query function in this shit i hope it works.
 ### interface
-i was thinking where can i use interface but i think i can make a config interface which allows init method but i dont know if that is a good practice
+i was thinking where can i use interface but i think i can make a config interface which allows init method but i dont know if that is a good practice but i had to refactor fully so that we can use db in handlers i didnot know that we had to pass the connection location from store to handler and then route needs the handler so we need to change the data. any ways we need to make query functions.
 ## Making the check:
 login request happens
 we provide token back in header
