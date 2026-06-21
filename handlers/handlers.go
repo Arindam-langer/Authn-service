@@ -9,8 +9,17 @@ import (
 	"strings"
 
 	"github.com/Arindam-langer/governance-service/internal"
+	"github.com/Arindam-langer/governance-service/internal/db"
 	"github.com/golang-jwt/jwt"
 )
+
+type Handler struct {
+	store db.UserStore
+}
+
+func New(store db.UserStore) *Handler {
+	return &Handler{store: store}
+}
 
 // maybe we can use an interface here
 func response(w http.ResponseWriter, response any) {
@@ -20,14 +29,14 @@ func response(w http.ResponseWriter, response any) {
 	}
 }
 
-func HealthCheck(w http.ResponseWriter, req *http.Request) {
+func (h *Handler) HealthCheck(w http.ResponseWriter, req *http.Request) {
 	res := health{Message: "all good", Code: 200}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	response(w, res)
 }
 
-func SignIn(w http.ResponseWriter, req *http.Request) {
+func (h *Handler) SignIn(w http.ResponseWriter, req *http.Request) {
 	var body loginRequest
 	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
@@ -58,7 +67,7 @@ func SignIn(w http.ResponseWriter, req *http.Request) {
 	response(w, res)
 }
 
-func VerifyToken(w http.ResponseWriter, req *http.Request) {
+func (h *Handler) VerifyToken(w http.ResponseWriter, req *http.Request) {
 	if req.Header["Authorization"] == nil {
 		res := struct {
 			Message string `json:"message"`

@@ -22,8 +22,12 @@ what is a governance microservice?
   - this is completed as i made a health checkpoint and necessary refactors now i need to add two things i think logging and rate limitind middleware for now
 4. make the endpoints return token: i have completed that now an endpoints generate token and header is storing them for the client. we need to do right now is make another token get stored in cookies which is a refresh token
 5. store the tokens for verification: completed this but now very good check right now since we need to store the token somewhere for us to check
+    currently i am connecting to DB so it should be another part.
+    ## The DB connection:
+    well i am using postgres because it is very famous i got a docker-compose file for it now i need to make a connection currently for one no pooling and also take a look at what is context here to cancel that concurrent call probably then make a script that runs to create models on server running and two three query interface function to query the db in the whole code base easily. they should be generic
 i think we can two ways here one where we store a raw token in redis cache and just check if it is present in redis if it is and expiry is not happening we just pass it on verified. but we can add another check from our db which stores user data as well and check if that guy is a valid user as well. a two way check would go like this in design.
-
+### interface
+i was thinking where can i use interface but i think i can make a config interface which allows init method but i dont know if that is a good practice
 ## Making the check:
 login request happens
 we provide token back in header
