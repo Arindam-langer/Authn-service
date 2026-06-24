@@ -21,8 +21,9 @@ func New(store db.UserStore) *Handler {
 	return &Handler{store: store}
 }
 
-// maybe we can use an interface here
-func response(w http.ResponseWriter, response any) {
+func encode(w http.ResponseWriter, response any, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
 	err := json.NewEncoder(w).Encode(response)
 	if err != nil {
 		log.Printf("Error in handling response %v", err)
@@ -31,9 +32,7 @@ func response(w http.ResponseWriter, response any) {
 
 func (h *Handler) HealthCheck(w http.ResponseWriter, req *http.Request) {
 	res := health{Message: "all good", Code: 200}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	response(w, res)
+	encode(w, res, http.StatusOK)
 }
 
 func (h *Handler) SignIn(w http.ResponseWriter, req *http.Request) {
@@ -50,8 +49,8 @@ func (h *Handler) SignIn(w http.ResponseWriter, req *http.Request) {
 			"user not found",
 		}
 
-		w.WriteHeader(http.StatusNotFound)
-		response(w, res)
+		encode(w, res, http.StatusNotFound)
+
 		return
 	}
 	// if the above condition does not work then we are gucci so we just generate the token and return in header
@@ -61,10 +60,8 @@ func (h *Handler) SignIn(w http.ResponseWriter, req *http.Request) {
 	}
 
 	res := loginResponse{Code: 201}
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	w.WriteHeader(http.StatusCreated)
-	response(w, res)
+	encode(w, res, http.StatusCreated)
 }
 
 func (h *Handler) VerifyToken(w http.ResponseWriter, req *http.Request) {
@@ -74,7 +71,7 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, req *http.Request) {
 		}{
 			"No token",
 		}
-		response(w, res)
+		encode(w, res, http.StatusUnauthorized)
 	}
 	headerToken := strings.TrimPrefix(req.Header["Authorization"][0], "Bearer ")
 	token, err := jwt.Parse(headerToken, auth.IsValidToken)
@@ -92,12 +89,12 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, req *http.Request) {
 		}{
 			"unverfied",
 		}
-		response(w, res)
+		encode(w, res, http.StatusForbidden)
 	} else {
 		res := struct {
 			Message string `json:"message"`
 		}{"token verified"}
-		response(w, res)
+		encode(w, res, http.StatusOK)
 
 	}
 }

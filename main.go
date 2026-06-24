@@ -1,10 +1,12 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Arindam-langer/governance-service/handlers"
@@ -20,6 +22,7 @@ const (
 	WriteTimeout time.Duration = 10 * time.Second
 )
 
+// graceful shutdown
 func main() {
 	_ = godotenv.Load()
 
@@ -39,9 +42,28 @@ func main() {
 		WriteTimeout:   WriteTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
-	fmt.Println("server listening on ", listenAddr)
-	err = s.ListenAndServe()
-	if err != nil {
-		log.Fatalf("failed to run the server %v", err)
+	go func() {
+		log.Println("server starting on :8080")
+		if err := s.ListenAndServe(); err != nil &&
+			err != http.ErrServerClosed {
+			log.Fatalf("server error: %v", err)
+		}
+	}()
+	// Main goroutine stays free
+	quit := make(chan os.Signal, 1)
+	signal.Notify(
+		quit,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+	)
+	<-quit
+	log.Println("signal received, shutting down...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := s.Shutdown(ctx); err != nil {
+		log.Fatalf("forced shutdown: %v", err)
 	}
+	log.Println("server exited cleanly")
 }
