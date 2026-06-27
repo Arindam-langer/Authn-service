@@ -34,7 +34,7 @@ func main() {
 	h := handlers.New(store)
 	router := routes.Init(h)
 
-	chain := middleware.LoggingMiddleware(middleware.UpdateHeader(router))
+	chain := middleware.RecoveryMiddleware(middleware.LoggingMiddleware(middleware.UpdateHeader(router)))
 	s := &http.Server{
 		Addr:           listenAddr,
 		Handler:        chain,

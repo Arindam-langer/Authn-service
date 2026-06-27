@@ -5,14 +5,15 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"log"
 
 	"github.com/jackc/pgx/v5"
 )
 
 type (
-	UserStore interface{}
-	DBStore   struct {
+	UserStore interface {
+		CreateUser(ctx context.Context, userName, password string) error
+	}
+	DBStore struct {
 		conn *pgx.Conn
 	}
 )
@@ -27,7 +28,7 @@ func New(connectionURL string) (*DBStore, error) {
 	}
 	_, err = conn.Exec(context.Background(), schema)
 	if err != nil {
-		log.Fatalf("error executing the script %v", err)
+		return nil, fmt.Errorf("executing schema: %w", err)
 	}
 	return &DBStore{conn: conn}, nil
 }
@@ -36,6 +37,13 @@ func (d *DBStore) Close() {
 	_ = d.conn.Close(context.Background())
 }
 
-// do we pass a whole user struct we will create or just userName
-func (d *DBStore) CreateUser() {
+func (d *DBStore) CreateUser(ctx context.Context, userName, password string) error {
+	_, err := d.conn.Exec(ctx, `
+        INSERT INTO users (username, password)
+        VALUES ($1, $2)
+    `, userName, password)
+	if err != nil {
+		return fmt.Errorf("creating user: %w", err)
+	}
+	return nil
 }
