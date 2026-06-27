@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -26,9 +26,14 @@ const (
 func main() {
 	_ = godotenv.Load()
 
+	// Initialize the default global slog logger to output JSON
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
 	store, err := db.New(os.Getenv("DATABASE_URL"))
 	if err != nil {
-		log.Fatalf("could not connect to db: %v", err)
+		slog.Error("could not connect to db", "error", err)
+		os.Exit(1)
 	}
 	defer store.Close()
 	h := handlers.New(store)
@@ -43,10 +48,11 @@ func main() {
 		MaxHeaderBytes: 1 << 20,
 	}
 	go func() {
-		log.Println("server starting on :8080")
+		slog.Info("server starting", "addr", listenAddr)
 		if err := s.ListenAndServe(); err != nil &&
 			err != http.ErrServerClosed {
-			log.Fatalf("server error: %v", err)
+			slog.Error("server error", "error", err)
+			os.Exit(1)
 		}
 	}()
 	// Main goroutine stays free
@@ -57,13 +63,14 @@ func main() {
 		syscall.SIGTERM,
 	)
 	<-quit
-	log.Println("signal received, shutting down...")
+	slog.Info("signal received, shutting down...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := s.Shutdown(ctx); err != nil {
-		log.Fatalf("forced shutdown: %v", err)
+		slog.Error("forced shutdown", "error", err)
+		os.Exit(1)
 	}
-	log.Println("server exited cleanly")
+	slog.Info("server exited cleanly")
 }

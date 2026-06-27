@@ -3,7 +3,7 @@ package handlers
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -51,7 +51,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, req *http.Request) {
 
 	token, err := auth.CreateToken(user.ID)
 	if err != nil {
-		log.Printf("error in generating Token %v", err)
+		slog.Error("error in generating token", "error", err)
 		throwError(w, "failed to generate token", http.StatusInternalServerError, err)
 		return
 	}
@@ -75,7 +75,7 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log.Printf("Token verified for user ID: %d", userID)
+	slog.Info("token verified successfully", "user_id", userID)
 
 	res := struct {
 		Message string `json:"message"`

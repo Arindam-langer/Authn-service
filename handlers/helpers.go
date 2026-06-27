@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 )
 
@@ -11,15 +11,15 @@ func encode(w http.ResponseWriter, response any, statusCode int) {
 	w.WriteHeader(statusCode)
 	err := json.NewEncoder(w).Encode(response)
 	if err != nil {
-		log.Printf("Error in handling response %v", err)
+		slog.Error("failed to encode response", "error", err)
 	}
 }
 
 func throwError(w http.ResponseWriter, message string, statusCode int, err error) {
 	if err != nil {
-		log.Printf("Error: %s: %v", message, err)
+		slog.Error(message, "error", err)
 	} else {
-		log.Printf("Error: %s", message)
+		slog.Warn(message)
 	}
 	encode(w, struct {
 		Message string `json:"message"`

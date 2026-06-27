@@ -43,11 +43,13 @@ the main thing is that i need to make this project be divided into small parts t
   - `helpers.go`: holds `encode`, `decode`, and `throwError`.
   - `handlers.go`: only holds core endpoint logic, very clean.
 
+### 7. Structured Logging with slog (Completed)
+- switched from standard `log` to standard library `log/slog` which outputs structured JSON logs.
+
 ---
 
 ## What is left to do:
 1. **Config & Env Files**: Need to stop hardcoding the JWT secret key and database URL. We should use environment variables (`os.Getenv`) and read from a `.env` file instead.
 2. **Database Migrations**: Setup a migration tool (like `goose` or `golang-migrate`) instead of blindly running `schema.sql` on startup.
-3. **Structured Logging**: Switch from `log.Printf` to standard Go `slog` so we get queryable JSON logs in production.
-4. **Token Refresh Flow**: Add a refresh token mechanism stored in HTTP-only cookies so the user doesn't get logged out after 10 minutes.
-5. **Redis Caching**: Store validated sessions or tokens in Redis to bypass database queries for active sessions.
+3. **Token Refresh Flow**: Add a refresh token mechanism stored in HTTP-only cookies so the user doesn't get logged out after 10 minutes.
+4. **Redis Caching**: Store validated sessions or tokens in Redis to bypass database queries for active sessions.
