@@ -6,15 +6,24 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 )
 
-var secretKey = []byte("password")
+var (
+	secretKey      = []byte("password")
+	PhoneNamespace = uuid.MustParse("d5dfb738-9226-444b-9721-a3f169f45efc")
+)
 
-func CreateToken(username, password string) (string, error) {
+func GeneratePhoneUUID(phoneNumber string) string {
+	u := uuid.NewSHA1(PhoneNamespace, []byte(phoneNumber))
+	return u.String()
+}
+
+func CreateToken(userID int) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{
-			"username": username,
-			"exp":      time.Now().Add(10 * time.Minute).Unix(),
+			"user_id": userID,
+			"exp":     time.Now().Add(10 * time.Minute).Unix(),
 		})
 
 	tokenString, err := token.SignedString(secretKey)

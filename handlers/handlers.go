@@ -41,7 +41,7 @@ func throwError(w http.ResponseWriter, message string, statusCode int, err error
 	}{Message: message}, statusCode)
 }
 
-func decode(req *http.Request, body *loginRequest) error {
+func decode(req *http.Request, body any) error {
 	return json.NewDecoder(req.Body).Decode(body)
 }
 
@@ -57,13 +57,20 @@ func (h *Handler) SignIn(w http.ResponseWriter, req *http.Request) {
 		throwError(w, "invalid body", http.StatusInternalServerError, err)
 		return
 	}
-	// this would be a DB call where we call db to check if this user exists or not for now it is going to be hard coded
-	if body.Username != "aru" {
-		throwError(w, "user not found", http.StatusNotFound, nil)
+	
+	phoneUUID := auth.GeneratePhoneUUID(body.PhoneNumber)
+	user, err := h.store.GetUserByPhoneUUID(req.Context(), phoneUUID)
+	if err != nil {
+		throwError(w, "user not found", http.StatusNotFound, err)
 		return
 	}
-	// if the above condition does not work then we are gucci so we just generate the token and return in header
-	token, err := auth.CreateToken(body.Username, body.Password)
+	
+	if user.Password != body.Password {
+		throwError(w, "invalid password", http.StatusUnauthorized, nil)
+		return
+	}
+
+	token, err := auth.CreateToken(user.ID)
 	if err != nil {
 		log.Printf("error in generating Token %v", err)
 		throwError(w, "failed to generate token", http.StatusInternalServerError, err)
@@ -77,7 +84,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, req *http.Request) {
 
 func (h *Handler) VerifyToken(w http.ResponseWriter, req *http.Request) {
 	authHeader := req.Header["Authorization"]
-	if authHeader == nil || len(authHeader) == 0 {
+	if len(authHeader) == 0 {
 		throwError(w, "No token", http.StatusUnauthorized, nil)
 		return
 	}
@@ -98,11 +105,15 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, req *http.Request) {
 		throwError(w, "invalid claims", http.StatusUnauthorized, nil)
 		return
 	}
-	username, ok := claims["username"].(string)
-	if !ok || username != "aru" {
+	userIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
 		throwError(w, "unverified", http.StatusForbidden, nil)
 		return
 	}
+	
+	userID := int(userIDFloat)
+	log.Printf("Token verified for user ID: %d", userID)
+	
 	res := struct {
 		Message string `json:"message"`
 	}{"token verified"}
@@ -110,13 +121,22 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *Handler) SignUp(w http.ResponseWriter, req *http.Request) {
-	var body loginRequest
+	var body signUpRequest
 	err := decode(req, &body)
 	if err != nil {
 		throwError(w, "invalid body", http.StatusInternalServerError, err)
 		return
 	}
-	err = h.store.CreateUser(req.Context(), body.Username, body.Password)
+
+	// Validate email: must contain '@' and have characters before and after it
+	atIdx := strings.Index(body.Email, "@")
+	if atIdx == -1 || atIdx == 0 || atIdx == len(body.Email)-1 {
+		throwError(w, "invalid email format: must contain @ followed by domain", http.StatusBadRequest, nil)
+		return
+	}
+
+	phoneUUID := auth.GeneratePhoneUUID(body.PhoneNumber)
+	err = h.store.CreateUser(req.Context(), body.Username, body.Email, phoneUUID, body.Password)
 	if err != nil {
 		throwError(w, "failed to create User", http.StatusInternalServerError, err)
 		return

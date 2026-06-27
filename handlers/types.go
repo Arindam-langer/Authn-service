@@ -9,8 +9,14 @@ type (
 	loginResponse struct {
 		Code statusCode `json:"status"`
 	}
+	signUpRequest struct {
+		Username    string `json:"username"`
+		Email       string `json:"email"`
+		PhoneNumber string `json:"phone_number"`
+		Password    string `json:"password"`
+	}
 	loginRequest struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
+		PhoneNumber string `json:"phone_number"`
+		Password    string `json:"password"`
 	}
 )

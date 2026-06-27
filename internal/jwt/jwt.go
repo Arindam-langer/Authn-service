@@ -10,11 +10,12 @@ import (
 
 var secretKey = []byte("password")
 
-func CreateToken(username, password string) (string, error) {
+func CreateToken(username, userID string) (string, error) {
 	// generate a hash or something using password and username  make a uuid to send in jwt
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{
 			"username": username,
+			"id":       userID,
 			"exp":      time.Now().Add(10 * time.Minute).Unix(),
 		})
 

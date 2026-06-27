@@ -10,8 +10,16 @@ import (
 )
 
 type (
+	User struct {
+		ID        int
+		Username  string
+		Email     string
+		PhoneUUID string
+		Password  string
+	}
 	UserStore interface {
-		CreateUser(ctx context.Context, userName, password string) error
+		CreateUser(ctx context.Context, username, email, phoneUUID, password string) error
+		GetUserByPhoneUUID(ctx context.Context, phoneUUID string) (*User, error)
 	}
 	DBStore struct {
 		conn *pgx.Conn
@@ -37,13 +45,24 @@ func (d *DBStore) Close() {
 	_ = d.conn.Close(context.Background())
 }
 
-func (d *DBStore) CreateUser(ctx context.Context, userName, password string) error {
+func (d *DBStore) CreateUser(ctx context.Context, username, email, phoneUUID, password string) error {
 	_, err := d.conn.Exec(ctx, `
-        INSERT INTO users (username, password)
-        VALUES ($1, $2)
-    `, userName, password)
+        INSERT INTO users (username, email, phone_uuid, password)
+        VALUES ($1, $2, $3, $4)
+    `, username, email, phoneUUID, password)
 	if err != nil {
 		return fmt.Errorf("creating user: %w", err)
 	}
 	return nil
+}
+
+func (d *DBStore) GetUserByPhoneUUID(ctx context.Context, phoneUUID string) (*User, error) {
+	var u User
+	err := d.conn.QueryRow(ctx, `
+		SELECT id, username, email, phone_uuid, password FROM users WHERE phone_uuid = $1
+	`, phoneUUID).Scan(&u.ID, &u.Username, &u.Email, &u.PhoneUUID, &u.Password)
+	if err != nil {
+		return nil, fmt.Errorf("get user by phone uuid: %w", err)
+	}
+	return &u, nil
 }
