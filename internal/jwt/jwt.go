@@ -3,12 +3,23 @@ package internal
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/joho/godotenv"
 )
 
-var secretKey = []byte("password")
+var secretKey []byte
+
+func init() {
+	_ = godotenv.Load()
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		panic("JWT_SECRET environment variable is required")
+	}
+	secretKey = []byte(secret)
+}
 
 func CreateToken(username, userID string) (string, error) {
 	// generate a hash or something using password and username  make a uuid to send in jwt

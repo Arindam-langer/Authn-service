@@ -3,17 +3,39 @@ package auth
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
-	secretKey      = []byte("password")
-	PhoneNamespace = uuid.MustParse("d5dfb738-9226-444b-9721-a3f169f45efc")
+	secretKey      []byte
+	PhoneNamespace uuid.UUID
 )
+
+func init() {
+	_ = godotenv.Load()
+
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		panic("JWT_SECRET environment variable is required")
+	}
+	secretKey = []byte(secret)
+
+	nsStr := os.Getenv("PHONE_NAMESPACE")
+	if nsStr == "" {
+		panic("PHONE_NAMESPACE environment variable is required")
+	}
+	var err error
+	PhoneNamespace, err = uuid.Parse(nsStr)
+	if err != nil {
+		panic(fmt.Sprintf("invalid PHONE_NAMESPACE: %v", err))
+	}
+}
 
 func GeneratePhoneUUID(phoneNumber string) string {
 	u := uuid.NewSHA1(PhoneNamespace, []byte(phoneNumber))
@@ -35,7 +57,7 @@ func CreateToken(userID int) (string, error) {
 	return tokenString, nil
 }
 
-func IsValidToken(token *jwt.Token) (interface{}, error) {
+func IsValidToken(token *jwt.Token) (any, error) {
 	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 		return nil, fmt.Errorf("there was an error in parsing")
 	}

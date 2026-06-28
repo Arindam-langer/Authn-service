@@ -16,12 +16,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const (
-	listenAddr   string        = "localhost:8080"
-	ReadTimeout  time.Duration = 10 * time.Second
-	WriteTimeout time.Duration = 10 * time.Second
-)
-
 // graceful shutdown
 func main() {
 	_ = godotenv.Load()
@@ -30,7 +24,41 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	store, err := db.New(os.Getenv("DATABASE_URL"))
+	listenAddr := os.Getenv("LISTEN_ADDR")
+	if listenAddr == "" {
+		slog.Error("LISTEN_ADDR environment variable is required")
+		os.Exit(1)
+	}
+
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		slog.Error("DATABASE_URL environment variable is required")
+		os.Exit(1)
+	}
+
+	readTimeoutStr := os.Getenv("READ_TIMEOUT")
+	if readTimeoutStr == "" {
+		slog.Error("READ_TIMEOUT environment variable is required")
+		os.Exit(1)
+	}
+	readTimeout, err := time.ParseDuration(readTimeoutStr)
+	if err != nil {
+		slog.Error("invalid READ_TIMEOUT duration", "error", err)
+		os.Exit(1)
+	}
+
+	writeTimeoutStr := os.Getenv("WRITE_TIMEOUT")
+	if writeTimeoutStr == "" {
+		slog.Error("WRITE_TIMEOUT environment variable is required")
+		os.Exit(1)
+	}
+	writeTimeout, err := time.ParseDuration(writeTimeoutStr)
+	if err != nil {
+		slog.Error("invalid WRITE_TIMEOUT duration", "error", err)
+		os.Exit(1)
+	}
+
+	store, err := db.New(databaseURL)
 	if err != nil {
 		slog.Error("could not connect to db", "error", err)
 		os.Exit(1)
@@ -43,8 +71,8 @@ func main() {
 	s := &http.Server{
 		Addr:           listenAddr,
 		Handler:        chain,
-		ReadTimeout:    ReadTimeout,
-		WriteTimeout:   WriteTimeout,
+		ReadTimeout:    readTimeout,
+		WriteTimeout:   writeTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
 	go func() {
