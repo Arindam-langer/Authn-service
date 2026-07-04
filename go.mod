@@ -1,4 +1,4 @@
-module github.com/Arindam-langer/governance-service
+module github.com/Arindam-langer/authn-service
 
 go 1.26.3
 

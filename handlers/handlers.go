@@ -1,4 +1,4 @@
-// Package handlers:  functions for governance come here
+// Package handlers:  functions for authn come here
 package handlers
 
 import (
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Arindam-langer/governance-service/internal/auth"
+	"github.com/Arindam-langer/authn-service/internal/auth"
 )
 
 type Handler struct {

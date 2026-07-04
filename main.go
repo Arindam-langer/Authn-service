@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Arindam-langer/governance-service/handlers"
-	"github.com/Arindam-langer/governance-service/internal/config"
-	"github.com/Arindam-langer/governance-service/internal/db"
-	"github.com/Arindam-langer/governance-service/middleware"
-	"github.com/Arindam-langer/governance-service/routes"
+	"github.com/Arindam-langer/authn-service/handlers"
+	"github.com/Arindam-langer/authn-service/internal/config"
+	"github.com/Arindam-langer/authn-service/internal/db"
+	"github.com/Arindam-langer/authn-service/middleware"
+	"github.com/Arindam-langer/authn-service/routes"
 )
 
 func main() {

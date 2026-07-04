@@ -4,8 +4,8 @@ package routes
 import (
 	"net/http"
 
-	"github.com/Arindam-langer/governance-service/handlers"
-	"github.com/Arindam-langer/governance-service/middleware"
+	"github.com/Arindam-langer/authn-service/handlers"
+	"github.com/Arindam-langer/authn-service/middleware"
 )
 
 // Init initializes the http server mux and registers routes

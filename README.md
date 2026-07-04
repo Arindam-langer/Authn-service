@@ -1,7 +1,7 @@
-## Governance service
+## Authn service
 
-What is a governance service?
-It is a service that determines whether to allow you access or not.
+What is an authn service?
+It is a service that handles authentication, verification, and session management.
 If you are a user then you are given a token else given a 401 or whatever is the status code.
 Now what we can do is give him a role as well according to that and allow whatever it is we are providing.
 Now in the power we can optimize it by using Redis and using different method of auths with different endpoints. there are different ways to role to a user i need to do research on that.

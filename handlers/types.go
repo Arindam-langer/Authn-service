@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Arindam-langer/governance-service/internal/model"
+	"github.com/Arindam-langer/authn-service/internal/model"
 )
 
 // UserStore defines the user-related behavior handlers needs.

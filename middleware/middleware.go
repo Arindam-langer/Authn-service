@@ -95,7 +95,6 @@ func RateLimitMiddleware(limiter RateLimiter, limit int, window time.Duration) f
 			if err != nil {
 				// Fail-open: we log the error but allow the request so Redis issues don't block users.
 				slog.Error("rate limiter evaluation error", "error", err, "ip", ip, "path", r.URL.Path)
-				return
 			} else if !allowed {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
