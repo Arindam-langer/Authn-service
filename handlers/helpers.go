@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 )
@@ -16,6 +17,12 @@ func encode(w http.ResponseWriter, response any, statusCode int) {
 }
 
 func throwError(w http.ResponseWriter, message string, statusCode int, err error) {
+	var maxBytesErr *http.MaxBytesError
+	if err != nil && errors.As(err, &maxBytesErr) {
+		statusCode = http.StatusRequestEntityTooLarge
+		message = "request body too large"
+	}
+
 	if err != nil {
 		slog.Error(message, "error", err)
 	} else {
