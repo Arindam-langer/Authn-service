@@ -2,6 +2,8 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
@@ -42,7 +44,7 @@ func GeneratePhoneUUID(phoneNumber string) string {
 	return u.String()
 }
 
-func CreateToken(userID int) (string, error) {
+func CreateAccessToken(userID int) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{
 			"user_id": userID,
@@ -55,6 +57,14 @@ func CreateToken(userID int) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+func CreateRefreshToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate token: %w", err)
+	}
+	return hex.EncodeToString(b), nil
 }
 
 func IsValidToken(token *jwt.Token) (any, error) {

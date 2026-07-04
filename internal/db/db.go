@@ -4,8 +4,11 @@ package db
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
+	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -17,9 +20,21 @@ type (
 		PhoneUUID string
 		Password  string
 	}
+	RefreshToken struct {
+		ID        uuid.UUID
+		UserID    int
+		TokenHash string
+		ExpiresAt time.Time
+		CreatedAt time.Time
+		Revoked   bool
+	}
 	UserStore interface {
 		CreateUser(ctx context.Context, username, email, phoneUUID, password string) error
 		GetUserByPhoneUUID(ctx context.Context, phoneUUID string) (*User, error)
+	}
+	AuthStore interface {
+		AddRefreshToken(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error
+		GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshToken, error)
 	}
 	DBStore struct {
 		conn *pgx.Conn
@@ -65,4 +80,31 @@ func (d *DBStore) GetUserByPhoneUUID(ctx context.Context, phoneUUID string) (*Us
 		return nil, fmt.Errorf("get user by phone uuid: %w", err)
 	}
 	return &u, nil
+}
+
+func (d *DBStore) AddRefreshToken(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error {
+	_, err := d.conn.Exec(ctx,
+		`INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
+		userID, tokenHash, expiresAt)
+	if err != nil {
+		return fmt.Errorf("add refresh token: %w", err)
+	}
+	return nil
+}
+
+func (d *DBStore) GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshToken, error) {
+	var rt RefreshToken
+	err := d.conn.QueryRow(ctx,
+		`SELECT id, user_id, token_hash, expires_at, created_at, revoked
+		 FROM refresh_tokens WHERE token_hash = $1`,
+		tokenHash,
+	).Scan(&rt.ID, &rt.UserID, &rt.TokenHash, &rt.ExpiresAt, &rt.CreatedAt, &rt.Revoked)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get the refresh_tokens: %w", err)
+	}
+
+	return &rt, nil
 }

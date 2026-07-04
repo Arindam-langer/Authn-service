@@ -53,6 +53,14 @@ the main thing is that i need to make this project be divided into small parts t
 ---
 
 ## What is left to do:
-1. **Database Migrations**: Setup a migration tool (like `goose` or `golang-migrate`) instead of blindly running `schema.sql` on startup.
+1. *(Low priority)* **Database Migrations**: Setup a migration tool (like `goose` or `golang-migrate`) instead of blindly running `schema.sql` on startup.
 2. **Token Refresh Flow**: Add a refresh token mechanism stored in HTTP-only cookies so the user doesn't get logged out after 10 minutes.
-3. **Redis Caching**: Store validated sessions or tokens in Redis to bypass database queries for active sessions.
+    - i mean in this sense we create a sign up request do we create a refresh token then. or when user signs up and checks if our refresh token is expired then generate one more now, i think when we sign in only then we switch or create token. now how does sign in work sign in gives a refresh token as well as access token.
+    we get a sign in request we verify user and then provide access token and new refresh token if expired as old on in cookies 
+    now in sign in we do two things we make a refresh token and access token everytime because checking is time consuming rather than just make a new token instead
+    but the access token goes in cookies to prevent xss attack by attacker using js apparently. now we can use the same token generate function but with different password should be different. now in sign up function we need to add just three things one to create a refresh token, pass it to cookies using net/http and store it in db and update it every time
+3. **Redis Caching**: Store validated sessions or tokens in Redis to bypass database queries for active sessions
+4. Add Grafana and Promethius
+
+
+we need to add revocation when token is expired and send 401 or something when we get and token mismatch as well we need to take care of that when we get 

@@ -64,7 +64,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.Close()
-	h := handlers.New(store)
+	h := handlers.New(store, store)
 	router := routes.Init(h)
 
 	chain := middleware.RecoveryMiddleware(middleware.LoggingMiddleware(middleware.UpdateHeader(router)))
