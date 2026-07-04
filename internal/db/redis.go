@@ -12,10 +12,7 @@ import (
 type RedisClient struct {
 	client *redis.Client
 }
-type BlockStore interface {
-	BlockToken(ctx context.Context, tokenHash string, ttl time.Duration) error
-	IsTokenBlocked(ctx context.Context, tokenHash string) (bool, error)
-}
+
 
 // NewRedis initializes a connection to Redis and pings it to verify connection.
 func NewRedis(url string) (*RedisClient, error) {

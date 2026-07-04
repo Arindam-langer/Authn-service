@@ -2,14 +2,18 @@
 package middleware
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"strings"
-
-	"github.com/Arindam-langer/governance-service/internal/db"
 )
+
+// This file was the consmer so we add the interface here.
+type TokenBlockChecker interface {
+	IsTokenBlocked(ctx context.Context, tokenHash string) (bool, error)
+}
 
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -42,7 +46,7 @@ func RecoveryMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func BlocklistMiddleware(blockStore db.BlockStore) func(http.Handler) http.Handler {
+func BlocklistMiddleware(checker TokenBlockChecker) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -57,7 +61,7 @@ func BlocklistMiddleware(blockStore db.BlockStore) func(http.Handler) http.Handl
 			sumHeader := sha256.Sum256([]byte(headerToken))
 			headerTokenHash := hex.EncodeToString(sumHeader[:])
 
-			blocked, err := blockStore.IsTokenBlocked(r.Context(), headerTokenHash)
+			blocked, err := checker.IsTokenBlocked(r.Context(), headerTokenHash)
 			if err != nil {
 				slog.Error("failed to check blocklist", "error", err)
 			} else if blocked {

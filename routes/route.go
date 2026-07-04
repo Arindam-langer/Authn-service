@@ -5,16 +5,15 @@ import (
 	"net/http"
 
 	"github.com/Arindam-langer/governance-service/handlers"
-	"github.com/Arindam-langer/governance-service/internal/db"
 	"github.com/Arindam-langer/governance-service/middleware"
 )
 
 // Init initializes the http server mux and registers routes
-func Init(h *handlers.Handler, blockStore db.BlockStore) http.Handler {
+func Init(h *handlers.Handler, checker middleware.TokenBlockChecker) http.Handler {
 	mux := http.NewServeMux()
 
 	// Middleware instantiation
-	blocklist := middleware.BlocklistMiddleware(blockStore)
+	blocklist := middleware.BlocklistMiddleware(checker)
 
 	mux.HandleFunc("GET /health", h.HealthCheck)
 	mux.HandleFunc("POST /signin", h.SignIn)

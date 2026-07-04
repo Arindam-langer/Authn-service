@@ -12,16 +12,15 @@ import (
 	"time"
 
 	"github.com/Arindam-langer/governance-service/internal/auth"
-	"github.com/Arindam-langer/governance-service/internal/db"
 )
 
 type Handler struct {
-	store      db.UserStore
-	authStore  db.AuthStore
-	blockStore db.BlockStore
+	store      UserStore
+	authStore  AuthStore
+	blockStore BlockStore
 }
 
-func New(store db.UserStore, authStore db.AuthStore, blockStore db.BlockStore) *Handler {
+func New(store UserStore, authStore AuthStore, blockStore BlockStore) *Handler {
 	return &Handler{store: store, authStore: authStore, blockStore: blockStore}
 }
 
@@ -269,6 +268,6 @@ func (h *Handler) SignOut(w http.ResponseWriter, req *http.Request) {
 
 	encode(w, struct {
 		Message string `json:"message"`
-	}{Message: "Signed Out successfully"}, http.StatusNoContent)
+	}{Message: "Signed Out successfully"}, http.StatusOK)
 	// redis adding the header token
 }

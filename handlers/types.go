@@ -1,9 +1,32 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"strings"
+	"time"
+
+	"github.com/Arindam-langer/governance-service/internal/model"
 )
+
+// UserStore defines the user-related behavior handlers needs.
+type UserStore interface {
+	CreateUser(ctx context.Context, username, email, phoneUUID, password string) error
+	GetUserByPhoneUUID(ctx context.Context, phoneUUID string) (*model.User, error)
+}
+
+// AuthStore defines the refresh-token behavior handlers needs.
+type AuthStore interface {
+	AddRefreshToken(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error
+	GetRefreshToken(ctx context.Context, tokenHash string) (*model.RefreshToken, error)
+	RevokeRefreshToken(ctx context.Context, tokenHash string) error
+	RevokeAllUserTokens(ctx context.Context, userID int) error
+}
+
+// BlockStore defines the token-blocking behavior handlers needs.
+type BlockStore interface {
+	BlockToken(ctx context.Context, tokenHash string, ttl time.Duration) error
+}
 
 type (
 	statusCode int

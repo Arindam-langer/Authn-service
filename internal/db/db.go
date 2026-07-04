@@ -8,42 +8,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/Arindam-langer/governance-service/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type (
-	User struct {
-		ID        int
-		Username  string
-		Email     string
-		PhoneUUID string
-		Password  string
-	}
-	RefreshToken struct {
-		ID        uuid.UUID
-		UserID    int
-		TokenHash string
-		ExpiresAt time.Time
-		CreatedAt time.Time
-		Revoked   bool
-	}
-	UserStore interface {
-		CreateUser(ctx context.Context, username, email, phoneUUID, password string) error
-		GetUserByPhoneUUID(ctx context.Context, phoneUUID string) (*User, error)
-	}
-	AuthStore interface {
-		AddRefreshToken(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error
-		GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshToken, error)
-		RevokeRefreshToken(ctx context.Context, tokenHash string) error
-		RevokeAllUserTokens(ctx context.Context, userID int) error
-	}
-
-	DBStore struct {
-		pool *pgxpool.Pool
-	}
-)
+type DBStore struct {
+	pool *pgxpool.Pool
+}
 
 //go:embed schema.sql
 var schema string
@@ -85,8 +57,8 @@ func (d *DBStore) CreateUser(ctx context.Context, username, email, phoneUUID, pa
 	return nil
 }
 
-func (d *DBStore) GetUserByPhoneUUID(ctx context.Context, phoneUUID string) (*User, error) {
-	var u User
+func (d *DBStore) GetUserByPhoneUUID(ctx context.Context, phoneUUID string) (*model.User, error) {
+	var u model.User
 	err := d.pool.QueryRow(ctx, `
 		SELECT id, username, email, phone_uuid, password FROM users WHERE phone_uuid = $1
 	`, phoneUUID).Scan(&u.ID, &u.Username, &u.Email, &u.PhoneUUID, &u.Password)
@@ -106,8 +78,8 @@ func (d *DBStore) AddRefreshToken(ctx context.Context, userID int, tokenHash str
 	return nil
 }
 
-func (d *DBStore) GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshToken, error) {
-	var rt RefreshToken
+func (d *DBStore) GetRefreshToken(ctx context.Context, tokenHash string) (*model.RefreshToken, error) {
+	var rt model.RefreshToken
 	err := d.pool.QueryRow(ctx,
 		`SELECT id, user_id, token_hash, expires_at, created_at, revoked
 		 FROM refresh_tokens WHERE token_hash = $1`,

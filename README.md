@@ -83,3 +83,8 @@ the main thing is that i need to make this project be divided into small parts t
 2. *(Low priority)* **Redis Caching**: Store validated sessions or tokens in Redis to bypass database queries for active sessions.
 3. **Observability**: Add Grafana and Prometheus because production needs eyes.
 4. *(Low priority)* **Session Metadata Binding**: Bind each active refresh token to a specific device/browser session using client metadata (User-Agent, IP address) to prevent cookie hijacking and support active session lists.
+
+founded anti pattern of interfaces and always remember this that 
+I- s the interface defined in the same package as its only implementation? → If yes, the consumer should own it instead.
+- Does a consumer import a package ONLY for its interface type, never calling its constructor? → That's a coupling smell. The consumer should define its own interface.
+- Does the interface have methods the consumer doesn't use? → The interface is too wide. Break it down per-consumer.
