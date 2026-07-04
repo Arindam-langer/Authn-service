@@ -16,12 +16,13 @@ import (
 )
 
 type Handler struct {
-	store     db.UserStore
-	authStore db.AuthStore
+	store      db.UserStore
+	authStore  db.AuthStore
+	blockStore db.BlockStore
 }
 
-func New(store db.UserStore, authStore db.AuthStore) *Handler {
-	return &Handler{store: store, authStore: authStore}
+func New(store db.UserStore, authStore db.AuthStore, blockStore db.BlockStore) *Handler {
+	return &Handler{store: store, authStore: authStore, blockStore: blockStore}
 }
 
 func (h *Handler) HealthCheck(w http.ResponseWriter, req *http.Request) {
@@ -234,7 +235,15 @@ func (h *Handler) SignOut(w http.ResponseWriter, req *http.Request) {
 	}
 	// this will be used in redis
 	headerToken := strings.TrimPrefix(authHeader[0], "Bearer ")
-	_ = headerToken // wait till we revoke
+
+	// Hash the access token and block it in Redis for its remaining lifetime (max 10 minutes)
+	sumHeader := sha256.Sum256([]byte(headerToken))
+	headerTokenHash := hex.EncodeToString(sumHeader[:])
+	err := h.blockStore.BlockToken(req.Context(), headerTokenHash, 10*time.Minute)
+	if err != nil {
+		slog.Error("failed to block access token in blocklist", "error", err)
+	}
+
 	cookies, err := req.Cookie("RefreshToken")
 	if err != nil {
 		throwError(w, "failed to get cookies", http.StatusBadRequest, err)
