@@ -56,32 +56,30 @@ the main thing is that i need to make this project be divided into small parts t
 - Built Token Reuse Detection (if a previously revoked refresh token is presented, all sessions for that user are immediately invalidated).
 - Refactored token generation using a shared helper method `issueRefreshToken` to keep code clean and maintainable (DRY/KISS).
 
-**Initial Design Notes & Thoughts for refresh tokens:**
-> * i mean in this sense we create a sign up request do we create a refresh token then. or when user signs up and checks if our refresh token is expired then generate one more now, i think when we sign in only then we switch or create token. now how does sign in work sign in gives a refresh token as well as access token.
-> * we get a sign in request we verify user and then provide access token and new refresh token if expired as old on in cookies 
-> * now in sign in we do two things we make a refresh token and access token everytime because checking is time consuming rather than just make a new token instead
-> * but the access token goes in cookies to prevent xss attack by attacker using js apparently. now we can use the same token generate function but with different password should be different. now in sign up function we need to add just three things one to create a refresh token, pass it to cookies using net/http and store it in db and update it every time
-> * we need to add revocation when token is expired and send 401 or something when we get and token mismatch as well we need to take care of that when we get
+### 10. Session Revocation, Logout & Redis Blocklist (Completed)
+- Added Redis to `docker-compose.yml` because we are cool like that and need speed.
+- Implemented a `BlockStore` in Redis (`internal/db/redis.go`) to store blacklisted tokens.
+- Added a `POST /signout` endpoint that invalidates the refresh token in Postgres and blocks the access token in Redis for its remaining lifetime (max 10 mins).
+- Created a `BlocklistMiddleware` that intercepts incoming requests, hashes their access token, and checks Redis. If the token is revoked, it throws a `401 Unauthorized` ("token is revoked") right away.
+
+### 11. Code Cleanup & Thread-Safety (Completed)
+- Cleaned up `main.go` which was getting too fat. Moved environment variable parsing into `internal/config/config.go` so we fail-fast on startup.
+- Upgraded Postgres storage from a single connection (`pgx.Conn`, which is NOT thread-safe and will crash if multiple users send requests simultaneously) to a proper connection pool (`pgxpool.Pool`) because we want this service to scale.
+- Kept the project layout KISS & DRY—all server setup logic is back to being simple and sequential directly inside `func main()`.
+
+**Initial Design Notes & Thoughts for refresh tokens & logout:**
+> * **How to signOut?** What do we get in the request? We get an `accessToken` (in the Authorization header) and the `refreshToken` (in cookies). On logout, we need to invalidate/revoke both.
+> * **Revoking the access token:** We can easily revoke the refresh token in the database, but since access tokens are stateless and not stored, how do we revoke the access token itself?
+> * **Redis Blocklist:** We need to introduce Redis here to store revoked access tokens, along with a new middleware to check incoming `Authorization` headers. If the token is revoked, return `401 Unauthorized`.
+> * **Two-Step Solution:**
+>   1. Sign out endpoint revokes the refresh token and adds the access token to Redis.
+>   2. Middleware checks if Redis has that token (using a simple lookup/hashset, similar to a Leetcode lookup).
+>   3. Add redis in docker-compose because we are cool like that!!!!
 
 ---
 
 ## What is left to do:
 1. *(Low priority)* **Database Migrations**: Setup a migration tool (like `goose` or `golang-migrate`) instead of blindly running `schema.sql` on startup.
-2. **Session Revocation & Logout**: Implement a `POST /logout` endpoint to clear the HTTP-only cookie and mark the session as revoked in the database.
-   
-   **Design Notes & Thoughts on Access Token Revocation:**
-   > * **How to signOut?** What do we get in the request? We get an `accessToken` (in the Authorization header) and the `refreshToken` (in cookies). On logout, we need to invalidate/revoke both.
-   > * **Revoking the access token:** We can easily revoke the refresh token in the database, but since access tokens are stateless and not stored, how do we revoke the access token itself?
-   > * **Redis Blocklist:** We need to introduce Redis here to store revoked access tokens, along with a new middleware to check incoming `Authorization` headers. If the token is revoked, return `401 Unauthorized`.
-   > * **Two-Step Solution:**
-   >   1. Sign out endpoint revokes the refresh token and adds the access token to Redis.
-   >   2. Middleware checks if Redis has that token (using a simple lookup/hashset, similar to a Leetcode lookup).
-   >   3. Add redis in docker-compose because we are cool like that!!!!
-
-
-3. *(Low priority)* **Redis Caching**: Store validated sessions or tokens in Redis to bypass database queries for active sessions.
-4. Add Grafana and Prometheus.
-5. *(Low priority)* **Session Metadata Binding**: Bind each active refresh token to a specific device/browser session using client metadata (User-Agent, IP address) to prevent cookie hijacking and support active session lists.
-
-
-
+2. *(Low priority)* **Redis Caching**: Store validated sessions or tokens in Redis to bypass database queries for active sessions.
+3. **Observability**: Add Grafana and Prometheus because production needs eyes.
+4. *(Low priority)* **Session Metadata Binding**: Bind each active refresh token to a specific device/browser session using client metadata (User-Agent, IP address) to prevent cookie hijacking and support active session lists.
