@@ -107,6 +107,19 @@ func RateLimitMiddleware(limiter RateLimiter, limit int, window time.Duration) f
 	}
 }
 
+// MaxBytesMiddleware limits the maximum request body size.
+// If a client sends a body larger than the limit, http.MaxBytesReader
+// will cause the subsequent read/decode to fail, which handlers
+// catch and return 413 Request Entity Too Large.
+func MaxBytesMiddleware(maxBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func getClientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		parts := strings.Split(xff, ",")
