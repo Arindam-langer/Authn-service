@@ -49,3 +49,23 @@ func (r *RedisClient) IsTokenBlocked(ctx context.Context, tokenHash string) (boo
 	}
 	return exists > 0, nil
 }
+
+// Allow implements a fixed-window rate limiting check using Redis.
+func (r *RedisClient) Allow(ctx context.Context, key string, limit int, window time.Duration) (bool, error) {
+	now := time.Now().UnixNano()
+	bucket := now / int64(window)
+	redisKey := fmt.Sprintf("ratelimit:%s:%d", key, bucket)
+
+	pipe := r.client.Pipeline()
+	incr := pipe.Incr(ctx, redisKey)
+	pipe.Expire(ctx, redisKey, window*2)
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("redis ratelimit pipeline: %w", err)
+	}
+
+	count := incr.Val()
+	return count <= int64(limit), nil
+}
+

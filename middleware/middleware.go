@@ -5,14 +5,21 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // This file was the consmer so we add the interface here.
 type TokenBlockChecker interface {
 	IsTokenBlocked(ctx context.Context, tokenHash string) (bool, error)
+}
+
+// RateLimiter defines the behavior needed to evaluate rate limit rules.
+type RateLimiter interface {
+	Allow(ctx context.Context, key string, limit int, window time.Duration) (bool, error)
 }
 
 func LoggingMiddleware(next http.Handler) http.Handler {
@@ -74,4 +81,46 @@ func BlocklistMiddleware(checker TokenBlockChecker) func(http.Handler) http.Hand
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// RateLimitMiddleware enforces rate limiting per client IP per route.
+func RateLimitMiddleware(limiter RateLimiter, limit int, window time.Duration) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := getClientIP(r)
+			// Rate limit per client IP, HTTP Method, and Path for route isolation.
+			key := fmt.Sprintf("ip:%s:route:%s:%s", ip, r.Method, r.URL.Path)
+
+			allowed, err := limiter.Allow(r.Context(), key, limit, window)
+			if err != nil {
+				// Fail-open: we log the error but allow the request so Redis issues don't block users.
+				slog.Error("rate limiter evaluation error", "error", err, "ip", ip, "path", r.URL.Path)
+				return
+			} else if !allowed {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_, _ = w.Write([]byte(`{"message":"Too many requests. Please try again later."}`))
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func getClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		if len(parts) > 0 {
+			return strings.TrimSpace(parts[0])
+		}
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+	ip := r.RemoteAddr
+	if idx := strings.LastIndex(ip, ":"); idx != -1 {
+		ip = ip[:idx]
+	}
+	return ip
 }

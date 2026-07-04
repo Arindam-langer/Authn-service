@@ -56,7 +56,9 @@ func main() {
 	// Initialize handlers, routes, and middleware chain
 	h := handlers.New(store, store, redisStore)
 	router := routes.Init(h, redisStore)
-	chain := middleware.RecoveryMiddleware(middleware.LoggingMiddleware(middleware.UpdateHeader(router)))
+	
+	globalRateLimit := middleware.RateLimitMiddleware(redisStore, 100, time.Minute)
+	chain := middleware.RecoveryMiddleware(middleware.LoggingMiddleware(middleware.UpdateHeader(globalRateLimit(router))))
 
 	// Setup Server
 	srv := &http.Server{
