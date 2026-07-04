@@ -35,6 +35,8 @@ type (
 	AuthStore interface {
 		AddRefreshToken(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error
 		GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshToken, error)
+		RevokeRefreshToken(ctx context.Context, tokenHash string) error
+		RevokeAllUserTokens(ctx context.Context, userID int) error
 	}
 	DBStore struct {
 		conn *pgx.Conn
@@ -107,4 +109,24 @@ func (d *DBStore) GetRefreshToken(ctx context.Context, tokenHash string) (*Refre
 	}
 
 	return &rt, nil
+}
+
+func (d *DBStore) RevokeRefreshToken(ctx context.Context, tokenHash string) error {
+	_, err := d.conn.Exec(ctx,
+		`UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1`,
+		tokenHash)
+	if err != nil {
+		return fmt.Errorf("revoke refresh token: %w", err)
+	}
+	return nil
+}
+
+func (d *DBStore) RevokeAllUserTokens(ctx context.Context, userID int) error {
+	_, err := d.conn.Exec(ctx,
+		`UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1`,
+		userID)
+	if err != nil {
+		return fmt.Errorf("revoke all user tokens: %w", err)
+	}
+	return nil
 }

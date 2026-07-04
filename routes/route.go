@@ -13,6 +13,6 @@ func Init(h *handlers.Handler) http.Handler {
 	mux.HandleFunc("POST /signin", h.SignIn)
 	mux.HandleFunc("POST /signup", h.SignUp)
 	mux.HandleFunc("POST /verify/token", h.VerifyToken)
-	mux.HandleFunc("POST /refresh", h.RefreshToken)
+	mux.HandleFunc("POST /refresh", h.Refresh)
 	return mux
 }

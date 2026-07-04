@@ -50,17 +50,27 @@ the main thing is that i need to make this project be divided into small parts t
 - Removed hardcoded values for server configuration (address, timeouts), JWT secret, and Phone UUID namespace.
 - Implemented environment variable loading with strict validation—failing fast at startup if configuration is missing or invalid.
 
+### 9. Token Refresh Flow & Rotation (Completed)
+- Designed a dedicated `refresh_tokens` table to store token hashes, expiration timestamps, and revocation status separate from the `users` table.
+- Implemented secure Token Rotation (generating and storing a new refresh token and invalidating the old one on each refresh request).
+- Built Token Reuse Detection (if a previously revoked refresh token is presented, all sessions for that user are immediately invalidated).
+- Refactored token generation using a shared helper method `issueRefreshToken` to keep code clean and maintainable (DRY/KISS).
+
+**Initial Design Notes & Thoughts:**
+> * i mean in this sense we create a sign up request do we create a refresh token then. or when user signs up and checks if our refresh token is expired then generate one more now, i think when we sign in only then we switch or create token. now how does sign in work sign in gives a refresh token as well as access token.
+> * we get a sign in request we verify user and then provide access token and new refresh token if expired as old on in cookies 
+> * now in sign in we do two things we make a refresh token and access token everytime because checking is time consuming rather than just make a new token instead
+> * but the access token goes in cookies to prevent xss attack by attacker using js apparently. now we can use the same token generate function but with different password should be different. now in sign up function we need to add just three things one to create a refresh token, pass it to cookies using net/http and store it in db and update it every time
+> * we need to add revocation when token is expired and send 401 or something when we get and token mismatch as well we need to take care of that when we get
+
 ---
 
 ## What is left to do:
 1. *(Low priority)* **Database Migrations**: Setup a migration tool (like `goose` or `golang-migrate`) instead of blindly running `schema.sql` on startup.
-2. **Token Refresh Flow**: Add a refresh token mechanism stored in HTTP-only cookies so the user doesn't get logged out after 10 minutes.
-    - i mean in this sense we create a sign up request do we create a refresh token then. or when user signs up and checks if our refresh token is expired then generate one more now, i think when we sign in only then we switch or create token. now how does sign in work sign in gives a refresh token as well as access token.
-    we get a sign in request we verify user and then provide access token and new refresh token if expired as old on in cookies 
-    now in sign in we do two things we make a refresh token and access token everytime because checking is time consuming rather than just make a new token instead
-    but the access token goes in cookies to prevent xss attack by attacker using js apparently. now we can use the same token generate function but with different password should be different. now in sign up function we need to add just three things one to create a refresh token, pass it to cookies using net/http and store it in db and update it every time
-3. **Redis Caching**: Store validated sessions or tokens in Redis to bypass database queries for active sessions
-4. Add Grafana and Promethius
+2. **Session Revocation & Logout**: Implement a `POST /logout` endpoint to clear the HTTP-only cookie and mark the session as revoked in the database.
+3. *(Low priority)* **Redis Caching**: Store validated sessions or tokens in Redis to bypass database queries for active sessions.
+4. Add Grafana and Prometheus.
+5. *(Low priority)* **Session Metadata Binding**: Bind each active refresh token to a specific device/browser session using client metadata (User-Agent, IP address) to prevent cookie hijacking and support active session lists.
 
 
-we need to add revocation when token is expired and send 401 or something when we get and token mismatch as well we need to take care of that when we get 
+

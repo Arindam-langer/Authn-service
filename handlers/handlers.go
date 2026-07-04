@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -59,30 +60,11 @@ func (h *Handler) SignIn(w http.ResponseWriter, req *http.Request) {
 		throwError(w, "failed to generate token", http.StatusInternalServerError, err)
 		return
 	}
-	refreshToken, err := auth.CreateRefreshToken()
+	err = h.issueRefreshToken(w, req.Context(), user.ID)
 	if err != nil {
-		slog.Error("error in generating refresh Token", "error", err)
-		throwError(w, "failed to generate Refresh Token", http.StatusInternalServerError, err)
-		return
-	}
-
-	refreshExpiry := time.Now().Add(7 * 24 * time.Hour)
-	sum := sha256.Sum256([]byte(refreshToken))
-	tokenHash := hex.EncodeToString(sum[:])
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     "RefreshToken",
-		HttpOnly: true,
-		Value:    refreshToken,
-		Secure:   true,
-		Path:     "/refresh",
-		SameSite: http.SameSiteStrictMode, // prevents csrf this one
-		Expires:  refreshExpiry,
-	})
-	err = h.authStore.AddRefreshToken(req.Context(), user.ID, tokenHash, refreshExpiry)
-	if err != nil {
-		slog.Error("failed to add the add refresh token to user", "error", err)
+		slog.Error("failed to issue refresh token", "error", err)
 		throwError(w, "failed to handle refresh token", http.StatusInternalServerError, err)
+		return
 	}
 	res := loginResponse{Code: 201}
 	w.Header().Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
@@ -142,12 +124,8 @@ func (h *Handler) SignUp(w http.ResponseWriter, req *http.Request) {
 	}{"user created"}, http.StatusCreated)
 }
 
-func (h *Handler) RefreshToken(w http.ResponseWriter, req *http.Request) {
-	// to refresh access token we get the RefreshToken from the cookies and check if RefreshToken is valid or not then we go from that
-	// if token is not valid then we just return error and make the user sign in again i think this is better it means signin
-	// has been done if the token is valid we just call create token and go from here
-
-	// first we get the RefreshToken from the cookies of our  Request
+func (h *Handler) Refresh(w http.ResponseWriter, req *http.Request) {
+	// first we get the RefreshToken from the cookies of our Request
 	cookies, err := req.Cookie("RefreshToken")
 	if err != nil {
 		throwError(w, "failed to get cookies", http.StatusBadRequest, err)
@@ -166,21 +144,80 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, req *http.Request) {
 		throwError(w, "Invalid refresh token", http.StatusUnauthorized, nil)
 		return
 	}
+
+	// Reuse Detection: If the token is already revoked, revoke ALL user sessions
+	if token.Revoked {
+		slog.Warn("Revoked refresh token reuse detected! Revoking all sessions for user", "user_id", token.UserID)
+		_ = h.authStore.RevokeAllUserTokens(req.Context(), token.UserID)
+
+		// Clear cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:     "RefreshToken",
+			Value:    "",
+			Path:     "/refresh",
+			MaxAge:   -1,
+			HttpOnly: true,
+		})
+		throwError(w, "Session compromised. Please log in again.", http.StatusUnauthorized, nil)
+		return
+	}
+
+	// Expiry Check
 	if token.ExpiresAt.Before(time.Now()) {
 		throwError(w, "Token Expired", http.StatusUnauthorized, nil)
 		return
 	}
-	if token.Revoked {
-		throwError(w, "Unauthorized token", http.StatusForbidden, nil)
-		return
-	}
+
+	// Generate new tokens
 	accessToken, err := auth.CreateAccessToken(token.UserID)
 	if err != nil {
 		slog.Error("error in generating access token", "error", err)
 		throwError(w, "failed to generate token", http.StatusInternalServerError, err)
 		return
 	}
+
+	err = h.issueRefreshToken(w, req.Context(), token.UserID)
+	if err != nil {
+		slog.Error("failed to issue new refresh token", "error", err)
+		throwError(w, "failed to handle refresh token", http.StatusInternalServerError, err)
+		return
+	}
+
+	err = h.authStore.RevokeRefreshToken(req.Context(), tokenHash)
+	if err != nil {
+		slog.Error("failed to revoke old refresh token", "error", err)
+		// We don't abort since the new token is already saved, but we should log it
+	}
+
 	res := loginResponse{Code: 201}
 	w.Header().Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 	encode(w, res, http.StatusCreated)
+}
+
+func (h *Handler) issueRefreshToken(w http.ResponseWriter, ctx context.Context, userID int) error {
+	refreshToken, err := auth.CreateRefreshToken()
+	if err != nil {
+		return fmt.Errorf("create token: %w", err)
+	}
+
+	refreshExpiry := time.Now().Add(7 * 24 * time.Hour)
+	sum := sha256.Sum256([]byte(refreshToken))
+	tokenHash := hex.EncodeToString(sum[:])
+
+	err = h.authStore.AddRefreshToken(ctx, userID, tokenHash, refreshExpiry)
+	if err != nil {
+		return fmt.Errorf("db store: %w", err)
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "RefreshToken",
+		HttpOnly: true,
+		Value:    refreshToken,
+		Secure:   true,
+		Path:     "/refresh",
+		SameSite: http.SameSiteStrictMode, // prevents csrf this one
+		Expires:  refreshExpiry,
+	})
+
+	return nil
 }
