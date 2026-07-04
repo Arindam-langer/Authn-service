@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type (
@@ -38,32 +39,43 @@ type (
 		RevokeRefreshToken(ctx context.Context, tokenHash string) error
 		RevokeAllUserTokens(ctx context.Context, userID int) error
 	}
+
 	DBStore struct {
-		conn *pgx.Conn
+		pool *pgxpool.Pool
 	}
 )
 
 //go:embed schema.sql
 var schema string
 
-func New(connectionURL string) (*DBStore, error) {
-	conn, err := pgx.Connect(context.Background(), connectionURL)
+// New initializes a connection pool to Postgres and verifies the connection.
+func New(ctx context.Context, connectionURL string) (*DBStore, error) {
+	pool, err := pgxpool.New(ctx, connectionURL)
 	if err != nil {
-		return nil, fmt.Errorf("db connect: %w", err)
+		return nil, fmt.Errorf("db connect pool: %w", err)
 	}
-	_, err = conn.Exec(context.Background(), schema)
+
+	// Ping to verify connection is alive
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("ping db: %w", err)
+	}
+
+	_, err = pool.Exec(ctx, schema)
 	if err != nil {
+		pool.Close()
 		return nil, fmt.Errorf("executing schema: %w", err)
 	}
-	return &DBStore{conn: conn}, nil
+	return &DBStore{pool: pool}, nil
 }
 
+// Close closes the connection pool.
 func (d *DBStore) Close() {
-	_ = d.conn.Close(context.Background())
+	d.pool.Close()
 }
 
 func (d *DBStore) CreateUser(ctx context.Context, username, email, phoneUUID, password string) error {
-	_, err := d.conn.Exec(ctx, `
+	_, err := d.pool.Exec(ctx, `
         INSERT INTO users (username, email, phone_uuid, password)
         VALUES ($1, $2, $3, $4)
     `, username, email, phoneUUID, password)
@@ -75,7 +87,7 @@ func (d *DBStore) CreateUser(ctx context.Context, username, email, phoneUUID, pa
 
 func (d *DBStore) GetUserByPhoneUUID(ctx context.Context, phoneUUID string) (*User, error) {
 	var u User
-	err := d.conn.QueryRow(ctx, `
+	err := d.pool.QueryRow(ctx, `
 		SELECT id, username, email, phone_uuid, password FROM users WHERE phone_uuid = $1
 	`, phoneUUID).Scan(&u.ID, &u.Username, &u.Email, &u.PhoneUUID, &u.Password)
 	if err != nil {
@@ -85,7 +97,7 @@ func (d *DBStore) GetUserByPhoneUUID(ctx context.Context, phoneUUID string) (*Us
 }
 
 func (d *DBStore) AddRefreshToken(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error {
-	_, err := d.conn.Exec(ctx,
+	_, err := d.pool.Exec(ctx,
 		`INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
 		userID, tokenHash, expiresAt)
 	if err != nil {
@@ -96,7 +108,7 @@ func (d *DBStore) AddRefreshToken(ctx context.Context, userID int, tokenHash str
 
 func (d *DBStore) GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshToken, error) {
 	var rt RefreshToken
-	err := d.conn.QueryRow(ctx,
+	err := d.pool.QueryRow(ctx,
 		`SELECT id, user_id, token_hash, expires_at, created_at, revoked
 		 FROM refresh_tokens WHERE token_hash = $1`,
 		tokenHash,
@@ -112,7 +124,7 @@ func (d *DBStore) GetRefreshToken(ctx context.Context, tokenHash string) (*Refre
 }
 
 func (d *DBStore) RevokeRefreshToken(ctx context.Context, tokenHash string) error {
-	_, err := d.conn.Exec(ctx,
+	_, err := d.pool.Exec(ctx,
 		`UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1`,
 		tokenHash)
 	if err != nil {
@@ -122,7 +134,7 @@ func (d *DBStore) RevokeRefreshToken(ctx context.Context, tokenHash string) erro
 }
 
 func (d *DBStore) RevokeAllUserTokens(ctx context.Context, userID int) error {
-	_, err := d.conn.Exec(ctx,
+	_, err := d.pool.Exec(ctx,
 		`UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1`,
 		userID)
 	if err != nil {
