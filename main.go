@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,95 +11,85 @@ import (
 	"time"
 
 	"github.com/Arindam-langer/governance-service/handlers"
+	"github.com/Arindam-langer/governance-service/internal/config"
 	"github.com/Arindam-langer/governance-service/internal/db"
 	"github.com/Arindam-langer/governance-service/middleware"
 	"github.com/Arindam-langer/governance-service/routes"
-	"github.com/joho/godotenv"
 )
 
-// graceful shutdown
 func main() {
-	_ = godotenv.Load()
-
-	// Initialize the default global slog logger to output JSON
+	// Initialize default global slog JSON logger
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	listenAddr := os.Getenv("LISTEN_ADDR")
-	if listenAddr == "" {
-		slog.Error("LISTEN_ADDR environment variable is required")
-		os.Exit(1)
-	}
-
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		slog.Error("DATABASE_URL environment variable is required")
-		os.Exit(1)
-	}
-
-	readTimeoutStr := os.Getenv("READ_TIMEOUT")
-	if readTimeoutStr == "" {
-		slog.Error("READ_TIMEOUT environment variable is required")
-		os.Exit(1)
-	}
-	readTimeout, err := time.ParseDuration(readTimeoutStr)
+	// Load configuration
+	cfg, err := config.Load()
 	if err != nil {
-		slog.Error("invalid READ_TIMEOUT duration", "error", err)
+		slog.Error("failed to load configuration", "error", err)
 		os.Exit(1)
 	}
 
-	writeTimeoutStr := os.Getenv("WRITE_TIMEOUT")
-	if writeTimeoutStr == "" {
-		slog.Error("WRITE_TIMEOUT environment variable is required")
-		os.Exit(1)
-	}
-	writeTimeout, err := time.ParseDuration(writeTimeoutStr)
+	// Connect to postgres database
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer dbCancel()
+	store, err := db.New(dbCtx, cfg.DatabaseURL)
 	if err != nil {
-		slog.Error("invalid WRITE_TIMEOUT duration", "error", err)
+		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
+	defer func() {
+		slog.Info("closing database connection")
+		store.Close()
+	}()
 
-	store, err := db.New(databaseURL)
+	// Connect to redis
+	redisStore, err := db.NewRedis(cfg.RedisURL)
 	if err != nil {
-		slog.Error("could not connect to db", "error", err)
+		slog.Error("failed to connect to redis", "error", err)
 		os.Exit(1)
 	}
-	defer store.Close()
-	h := handlers.New(store, store)
-	router := routes.Init(h)
+	defer func() {
+		slog.Info("closing redis connection")
+		redisStore.Close()
+	}()
 
+	// Initialize handlers, routes, and middleware chain
+	h := handlers.New(store, store, redisStore)
+	router := routes.Init(h, redisStore)
 	chain := middleware.RecoveryMiddleware(middleware.LoggingMiddleware(middleware.UpdateHeader(router)))
-	s := &http.Server{
-		Addr:           listenAddr,
+
+	// Setup Server
+	srv := &http.Server{
+		Addr:           cfg.ListenAddr,
 		Handler:        chain,
-		ReadTimeout:    readTimeout,
-		WriteTimeout:   writeTimeout,
+		ReadTimeout:    cfg.ReadTimeout,
+		WriteTimeout:   cfg.WriteTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
+
+	// Start HTTP server
 	go func() {
-		slog.Info("server starting", "addr", listenAddr)
-		if err := s.ListenAndServe(); err != nil &&
-			err != http.ErrServerClosed {
+		slog.Info("server starting", "addr", cfg.ListenAddr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("server error", "error", err)
 			os.Exit(1)
 		}
 	}()
-	// Main goroutine stays free
+
+	// Wait for interruption signal
 	quit := make(chan os.Signal, 1)
-	signal.Notify(
-		quit,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-	)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	slog.Info("signal received, shutting down...")
 
+	// Perform graceful shutdown with a timeout context
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := s.Shutdown(ctx); err != nil {
-		slog.Error("forced shutdown", "error", err)
+	if err := srv.Shutdown(ctx); err != nil {
+		slog.Error("graceful shutdown failed", "error", err)
 		os.Exit(1)
 	}
+
 	slog.Info("server exited cleanly")
 }
