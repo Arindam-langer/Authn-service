@@ -14,5 +14,6 @@ func Init(h *handlers.Handler) http.Handler {
 	mux.HandleFunc("POST /signup", h.SignUp)
 	mux.HandleFunc("POST /verify/token", h.VerifyToken)
 	mux.HandleFunc("POST /refresh", h.Refresh)
+	mux.HandleFunc("POST /signout", h.SignOut)
 	return mux
 }

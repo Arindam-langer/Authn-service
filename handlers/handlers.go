@@ -158,7 +158,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, req *http.Request) {
 			MaxAge:   -1,
 			HttpOnly: true,
 		})
-		throwError(w, "Session compromised. Please log in again.", http.StatusUnauthorized, nil)
+		throwError(w, "Nice Try!! Bitcch did you think this would word. Please log in again.", http.StatusUnauthorized, nil)
 		return
 	}
 
@@ -220,4 +220,46 @@ func (h *Handler) issueRefreshToken(w http.ResponseWriter, ctx context.Context, 
 	})
 
 	return nil
+}
+
+func (h *Handler) SignOut(w http.ResponseWriter, req *http.Request) {
+	// now in this function we need to signOut
+	// what do get in request that is the first question? we get an accessToken and when we logOut what do we do we need to invalidate or revoke
+	// the current access token and the refreshToken which we will recieve in cookies but the bigger question is how do we revoke our access token
+	// after signout we have a function revoke a refresh token but not access token because we are not storing it.
+	authHeader := req.Header["Authorization"]
+	if len(authHeader) == 0 {
+		throwError(w, "No token", http.StatusUnauthorized, nil)
+		return
+	}
+	// this will be used in redis
+	headerToken := strings.TrimPrefix(authHeader[0], "Bearer ")
+	_ = headerToken // wait till we revoke
+	cookies, err := req.Cookie("RefreshToken")
+	if err != nil {
+		throwError(w, "failed to get cookies", http.StatusBadRequest, err)
+		return
+	}
+	sum := sha256.Sum256([]byte(cookies.Value))
+	tokenHash := hex.EncodeToString(sum[:])
+
+	// we revoke all refresh token
+	err = h.authStore.RevokeRefreshToken(req.Context(), tokenHash)
+	if err != nil {
+		throwError(w, "failed to revoke the token", http.StatusInternalServerError, err)
+		return
+	}
+	// Clear the cookie on the client browser
+	http.SetCookie(w, &http.Cookie{
+		Name:     "RefreshToken",
+		Value:    "",
+		Path:     "/refresh",
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
+
+	encode(w, struct {
+		Message string `json:"message"`
+	}{Message: "Signed Out successfully"}, http.StatusNoContent)
+	// redis adding the header token
 }
