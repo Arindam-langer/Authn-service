@@ -3,8 +3,6 @@ package handlers
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -33,7 +31,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, req *http.Request) {
 	var body loginRequest
 	err := decode(req, &body)
 	if err != nil {
-		throwError(w, "invalid body", http.StatusInternalServerError, err)
+		throwError(w, "invalid body payload", http.StatusBadRequest, err)
 		return
 	}
 
@@ -97,7 +95,7 @@ func (h *Handler) SignUp(w http.ResponseWriter, req *http.Request) {
 	var body signUpRequest
 	err := decode(req, &body)
 	if err != nil {
-		throwError(w, "invalid body", http.StatusInternalServerError, err)
+		throwError(w, "invalid body payload", http.StatusBadRequest, err)
 		return
 	}
 
@@ -125,16 +123,13 @@ func (h *Handler) SignUp(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *Handler) Refresh(w http.ResponseWriter, req *http.Request) {
-	// first we get the RefreshToken from the cookies of our Request
-	cookies, err := req.Cookie("RefreshToken")
+	cookies, err := req.Cookie(refreshTokenCookieName)
 	if err != nil {
 		throwError(w, "failed to get cookies", http.StatusBadRequest, err)
 		return
 	}
-	sum := sha256.Sum256([]byte(cookies.Value))
-	tokenHash := hex.EncodeToString(sum[:])
+	tokenHash := hashToken(cookies.Value)
 
-	// cookies.Value == to the one in db then we are gucci
 	token, err := h.authStore.GetRefreshToken(req.Context(), tokenHash)
 	if err != nil {
 		throwError(w, "Failed to fetch token", http.StatusInternalServerError, err)
@@ -150,14 +145,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, req *http.Request) {
 		slog.Warn("Revoked refresh token reuse detected! Revoking all sessions for user", "user_id", token.UserID)
 		_ = h.authStore.RevokeAllUserTokens(req.Context(), token.UserID)
 
-		// Clear cookie
-		http.SetCookie(w, &http.Cookie{
-			Name:     "RefreshToken",
-			Value:    "",
-			Path:     "/refresh",
-			MaxAge:   -1,
-			HttpOnly: true,
-		})
+		clearRefreshTokenCookie(w)
 		throwError(w, "Nice Try!! Bitcch did you think this would word. Please log in again.", http.StatusUnauthorized, nil)
 		return
 	}
@@ -186,7 +174,6 @@ func (h *Handler) Refresh(w http.ResponseWriter, req *http.Request) {
 	err = h.authStore.RevokeRefreshToken(req.Context(), tokenHash)
 	if err != nil {
 		slog.Error("failed to revoke old refresh token", "error", err)
-		// We don't abort since the new token is already saved, but we should log it
 	}
 
 	res := loginResponse{Code: 201}
@@ -201,73 +188,47 @@ func (h *Handler) issueRefreshToken(w http.ResponseWriter, ctx context.Context, 
 	}
 
 	refreshExpiry := time.Now().Add(7 * 24 * time.Hour)
-	sum := sha256.Sum256([]byte(refreshToken))
-	tokenHash := hex.EncodeToString(sum[:])
+	tokenHash := hashToken(refreshToken)
 
 	err = h.authStore.AddRefreshToken(ctx, userID, tokenHash, refreshExpiry)
 	if err != nil {
 		return fmt.Errorf("db store: %w", err)
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "RefreshToken",
-		HttpOnly: true,
-		Value:    refreshToken,
-		Secure:   true,
-		Path:     "/refresh",
-		SameSite: http.SameSiteStrictMode, // prevents csrf this one
-		Expires:  refreshExpiry,
-	})
-
+	setRefreshTokenCookie(w, refreshToken, refreshExpiry)
 	return nil
 }
 
 func (h *Handler) SignOut(w http.ResponseWriter, req *http.Request) {
-	// now in this function we need to signOut
-	// what do get in request that is the first question? we get an accessToken and when we logOut what do we do we need to invalidate or revoke
-	// the current access token and the refreshToken which we will recieve in cookies but the bigger question is how do we revoke our access token
-	// after signout we have a function revoke a refresh token but not access token because we are not storing it.
 	authHeader := req.Header["Authorization"]
 	if len(authHeader) == 0 {
 		throwError(w, "No token", http.StatusUnauthorized, nil)
 		return
 	}
-	// this will be used in redis
 	headerToken := strings.TrimPrefix(authHeader[0], "Bearer ")
 
-	// Hash the access token and block it in Redis for its remaining lifetime (max 10 minutes)
-	sumHeader := sha256.Sum256([]byte(headerToken))
-	headerTokenHash := hex.EncodeToString(sumHeader[:])
+	headerTokenHash := hashToken(headerToken)
 	err := h.blockStore.BlockToken(req.Context(), headerTokenHash, 10*time.Minute)
 	if err != nil {
 		slog.Error("failed to block access token in blocklist", "error", err)
 	}
 
-	cookies, err := req.Cookie("RefreshToken")
+	cookies, err := req.Cookie(refreshTokenCookieName)
 	if err != nil {
 		throwError(w, "failed to get cookies", http.StatusBadRequest, err)
 		return
 	}
-	sum := sha256.Sum256([]byte(cookies.Value))
-	tokenHash := hex.EncodeToString(sum[:])
+	tokenHash := hashToken(cookies.Value)
 
-	// we revoke all refresh token
 	err = h.authStore.RevokeRefreshToken(req.Context(), tokenHash)
 	if err != nil {
 		throwError(w, "failed to revoke the token", http.StatusInternalServerError, err)
 		return
 	}
-	// Clear the cookie on the client browser
-	http.SetCookie(w, &http.Cookie{
-		Name:     "RefreshToken",
-		Value:    "",
-		Path:     "/refresh",
-		MaxAge:   -1,
-		HttpOnly: true,
-	})
+
+	clearRefreshTokenCookie(w)
 
 	encode(w, struct {
 		Message string `json:"message"`
 	}{Message: "Signed Out successfully"}, http.StatusOK)
-	// redis adding the header token
 }
